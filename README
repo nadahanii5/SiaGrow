@@ -1,0 +1,125 @@
+ Siagrow Data Pipeline
+
+For this task I built a small data pipeline that receives order data from a client, cleans it, stores it in ClickHouse, and shows it in a Power BI dashboard.
+
+![Dashboard](powerbi/dashboard.png)
+
+ The Flow
+
+```
+Client Database  ─┐
+                  ├─►  Python (extract + clean)  ─►  ClickHouse  ─►  Power BI
+Email attachments ─┘
+```
+
+The client can send data in two ways:
+1. Directly from their database (I simulated it with a SQLite database of orders).
+2. As Excel or CSV files attached to an email (I simulated the inbox with a folder).
+
+Each file can have different column names, missing values, or wrong values, so before loading I standardize everything into one table.
+
+ What I Implemented
+
+- Extracting orders from the client database and from email attachments (CSV and Excel).
+- Incremental load: the pipeline remembers the last `updated_at` it read, so every run only pulls the new orders.
+- Cleaning with pandas: unifying column names, trimming text, fixing data types, and filling missing values.
+- Validation: rows with invalid data (for example a quantity that is not a number) are not loaded. They are saved in `data/rejected/` so they can be checked later.
+- Avoiding duplicates: every order gets a fixed `record_id`, and the ClickHouse table uses `ReplacingMergeTree`, so loading the same order twice does not duplicate it.
+- The progress is saved only after the data is loaded successfully, so nothing is lost if a run fails.
+- Batch inserts into ClickHouse instead of inserting row by row.
+- A scheduler that runs the pipeline automatically every minute.
+- A Power BI dashboard connected directly to ClickHouse.
+
+ Tools
+
+Python, pandas, ClickHouse (Docker), APScheduler, Power BI
+
+ Project Structure
+
+```
+siagrow-pipeline/
+├── docker-compose.yml
+├── requirements.txt
+├── run_pipeline.py
+├── scheduler.py
+├── pipeline/
+│   ├── transform.py
+│   ├── loader.py
+│   └── sources/
+│       ├── db_source.py
+│       └── email_source.py
+├── scripts/
+│   ├── create_tables.py
+│   ├── seed_client_db.py
+│   └── make_excel_email.py
+├── sql/
+│   └── create_tables.sql
+├── sample_data/
+│   └── email_inbox/
+└── powerbi/
+    └── siagrow_dashboard.pbix
+```
+
+ How to Run
+
+Start ClickHouse:
+```
+docker compose up -d
+```
+
+Install the requirements:
+```
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Create the table in ClickHouse:
+```
+python scripts/create_tables.py
+```
+
+Generate sample data:
+```
+python scripts/seed_client_db.py
+python scripts/make_excel_email.py
+```
+
+Run the pipeline once:
+```
+python run_pipeline.py
+```
+
+Or run it automatically every minute:
+```
+python scheduler.py
+```
+
+Then open `powerbi/siagrow_dashboard.pbix` and click Refresh.
+
+ The ClickHouse Table
+
+All sources end up in one table, `siagrow.orders`, with the same columns:
+
+| Column | Description |
+|---|---|
+| record_id | unique id for each order |
+| source | where the order came from (database or email) |
+| source_id | the original order id |
+| customer_name | customer name |
+| product | product name |
+| quantity | quantity ordered |
+| unit_price | price per unit |
+| total_amount | quantity × unit price |
+| city | city |
+| order_date | order date |
+| received_at | when the data was received |
+| ingested_at | when it was loaded into ClickHouse |
+
+Power BI reads from the view `siagrow.orders_clean`, which returns the data without duplicates.
+
+ What I Would Add Next
+
+- Reading real emails from a mailbox using IMAP.
+- Adding WhatsApp as another source using a FastAPI webhook.
+- Using Airflow for scheduling and monitoring.

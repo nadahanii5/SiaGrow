@@ -1,0 +1,16 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: siagrow-clickhouse
+    ports:
+      - "8123:8123"   # HTTP: Python و Power BI هيكلموه منه
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_USER: siagrow
+      CLICKHOUSE_PASSWORD: siagrow123
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse   # عشان الداتا ما تضيعش
+
+volumes:
+  clickhouse_data:

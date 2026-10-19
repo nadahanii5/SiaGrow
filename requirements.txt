@@ -1,0 +1,10 @@
+   pandas
+   openpyxl
+   sqlalchemy
+   clickhouse-connect
+   fastapi
+   uvicorn
+   python-multipart
+   python-dotenv
+   apscheduler
+   httpx
